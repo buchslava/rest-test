@@ -59,7 +59,7 @@ exports.getRequestDescriptors = function(settings) {
         }
       }
 
-      result.push({url, method: item.verb, bodyParameters});
+      result.push({url, method: item.verb, bodyParameters, retries: 0});
     }
   }
   return result;

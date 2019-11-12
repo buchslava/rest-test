@@ -1,47 +1,60 @@
 const axios = require('axios');
 const initData = require('./init-data');
+const utils = require('./utils');
 const descriptors = initData.getRequestDescriptors(initData.settings);
 
-const processRequest = descriptor => {
-  if (descriptor.method === 'GET') {
-    return axios.get(descriptor.url)
-      .catch(function () { return { error: true, descriptor } });
+const REQUESTS_PER_MINUTE = 30;
+const RETRIES_QUANTITY = 2;
+
+const chunks = utils.chunk(descriptors, REQUESTS_PER_MINUTE);
+const out = [];
+
+let interval;
+
+const getResult = () => {
+  console.log(JSON.stringify(out, null, 2));
+};
+
+const processTick = () => {
+  if (chunks.length <= 0) {
+    clearInterval(interval);
+    getResult();
+    return;
   }
 
-  if (descriptor.method === 'POST') {
-    return axios.post(descriptor.url, descriptor.bodyParameters)
-      .catch(function () { return { error: true, descriptor } });
-  }
+  const chunk = chunks.pop();
 
-  return null;
-}
+  axios.all(chunk.map(desc => utils.processRequest(desc))).then(result => {
+    const failedDescriptors = [];
 
-axios.all(descriptors.map(desc => processRequest(desc))).then(result => {
-  const out = result.map(response => response.error ? ({
-    url: response.descriptor.url,
-    Status: 'Failed',
-    response: {
-    }
-  }) : ({
-    url: response.config.url,
-    Status: 'Success',
-    response: response.data
-  }));
-  console.log(out);
-});
-
-/*(async () => {
-  while (descriptors.length > 0) {
-    const desc = descriptors.pop();
-
-    try {
-      if (desc.method === 'GET') {
-        const r = await axios.get(desc.url);
-        console.log(r.data);
+    for (const response of result) {
+      if (response.error && response.descriptor.retries < RETRIES_QUANTITY) {
+        console.warn(`retry ${response.descriptor.url}`);
+        response.descriptor.retries++;
+        failedDescriptors.push(response.descriptor);
+      } else if (response.error && response.descriptor.retries >= RETRIES_QUANTITY) {
+        out.push({
+          url: response.descriptor.url,
+          Status: 'Failed',
+          response: {
+          }
+        });
+      } else {
+        out.push({
+          url: response.config.url,
+          Status: 'Success',
+          response: response.data
+        });
       }
-    } catch (e) {
-      console.log(e, desc);
     }
-  }
-})();
-*/
+
+    if (failedDescriptors.length > 0) {
+      chunks.push(...utils.chunk(failedDescriptors, REQUESTS_PER_MINUTE));
+      processTick();
+    }
+  });
+};
+
+processTick();
+interval = setInterval(processTick, 1000 * 10);
+
