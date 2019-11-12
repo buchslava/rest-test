@@ -4,23 +4,32 @@ const bulk = require('./index');
 
 const app = express();
 
-const ExpressCache = require('express-cache-middleware');
-const cacheManager = require('cache-manager');
-
-const cacheMiddleware = new ExpressCache(
-  cacheManager.caching({
-    store: 'memory', max: 100000, ttl: 360000
-  })
-);
-
-cacheMiddleware.attach(app);
+let interval;
 
 app.use(cors());
 
 app.get('/', (req, res) => {
-  bulk.bulkRequest().then(out => {
-    res.send(JSON.stringify(out, null, 2));
-  });
+  const out = app.get('out');
+
+  if (out) {
+    res.send(out);
+    return;
+  }
+
+  if (!bulk.working && !out) {
+    bulk.bulkRequest().then(out => {
+      out = JSON.stringify(out, null, 2);
+      app.set('out', out);
+      res.send(out);
+    });
+  } else if (!out){
+    interval = setInterval(() => {
+      if (!bulk.working) {
+        clearInterval(interval);
+        res.send(out);
+      }
+    }, 1000);
+  }
 });
 
 app.listen(3000, () =>

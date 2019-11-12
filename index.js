@@ -5,21 +5,19 @@ const utils = require('./utils');
 const REQUESTS_PER_MINUTE = 30;
 const RETRIES_QUANTITY = 2;
 
+exports.working = false;
+
 exports.bulkRequest = async () => {
   return new Promise(resolve => {
+    exports.working = true;
+
     const descriptors = initData.getRequestDescriptors(initData.settings);
     const chunks = utils.chunk(descriptors, REQUESTS_PER_MINUTE);
     const out = [];
 
-    let interval;
+    let timeout;
 
     const processTick = () => {
-      if (chunks.length <= 0) {
-        clearInterval(interval);
-        resolve(out);
-        return;
-      }
-
       const chunk = chunks.pop();
 
       axios.all(chunk.map(desc => utils.processRequest(desc))).then(result => {
@@ -47,13 +45,25 @@ exports.bulkRequest = async () => {
 
         if (failedDescriptors.length > 0) {
           chunks.push(...utils.chunk(failedDescriptors, REQUESTS_PER_MINUTE));
-          processTick();
+          // todo: optimize this logic
+          if (utils.totalChunksCount(chunks) > REQUESTS_PER_MINUTE) {
+            clearTimeout(timeout);
+            timeout = setTimeout(processTick, 1000 * 60);
+          } else {
+            processTick();
+          }
+        } else if (chunks.length <= 0) {
+          exports.working = false;
+          clearTimeout(timeout);
+          resolve(out);
+        } else {
+          clearTimeout(timeout);
+          timeout = setTimeout(processTick, 1000 * 60);
         }
       });
     };
 
 
     processTick();
-    interval = setInterval(processTick, 1000 * 10);
   });
 };

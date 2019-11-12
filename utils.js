@@ -25,3 +25,5 @@ exports.chunk = (arr, len) => {
 
   return chunks;
 }
+
+exports.totalChunksCount = chunks => chunks.reduce((total, chunk) => total + chunk.length, 0);
