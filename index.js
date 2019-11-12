@@ -2,13 +2,12 @@ const axios = require('axios');
 const initData = require('./init-data');
 const utils = require('./utils');
 
+const REQUESTS_PER_MINUTE = 30;
+const RETRIES_QUANTITY = 2;
+
 exports.bulkRequest = async () => {
   return new Promise(resolve => {
     const descriptors = initData.getRequestDescriptors(initData.settings);
-
-    const REQUESTS_PER_MINUTE = 30;
-    const RETRIES_QUANTITY = 2;
-
     const chunks = utils.chunk(descriptors, REQUESTS_PER_MINUTE);
     const out = [];
 
