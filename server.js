@@ -4,12 +4,12 @@ const bulk = require('./index');
 
 const app = express();
 
-let interval;
+// let interval;
 
 app.use(cors());
 
 app.get('/', (req, res) => {
-  const out = app.get('out');
+  /*const out = app.get('out');
 
   if (out) {
     res.send(out);
@@ -18,7 +18,7 @@ app.get('/', (req, res) => {
 
   if (!bulk.working && !out) {
     bulk.bulkRequest().then(out => {
-      out = JSON.stringify(out, null, 2);
+      out = out.map(record => `<p>${record.data.value}</p>`).join(' ');
       app.set('out', out);
       res.send(out);
     });
@@ -29,7 +29,11 @@ app.get('/', (req, res) => {
         res.send(out);
       }
     }, 1000);
-  }
+  }*/
+  bulk.bulkRequest().then(out => {
+    out = out.map(record => `<p>${record.data.value}</p>`).join(' ');
+    res.send(out);
+  });
 });
 
 app.listen(3000, () =>
